@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    parameters {
+        string defaultValue: 'master', description: 'Enter git branch', name: 'gitReference'
+        string defaultValue: 'https://github.com/shahriar52/infra-deploy.git', description: 'Enter git repo', name: 'gitRepo'
+        string defaultValue: 'e2b04e48-a41a-4ab2-ab97-95b935c58620', description: 'Enter git repo', name: 'gitCredentialID'
+    }
+
+    stages {
+        stage('Clone Git Repository') { 
+            steps {
+                cleanWs()
+                script {
+                    def scmVars = checkout([$class: 'GitSCM', branches: [[name: "${gitReference}"]], userRemoteConfigs: [[url: "${gitRepo}"]]]) 
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    
+                }   
+            }
+        }        
+
+        stage('Terraform init') {
+            steps {
+                sh 'terraform -chdir=infra init'
+            }
+        }
+
+        stage('Terraform apply') {
+            steps {
+                sh 'terraform -chdir=infra apply --auto-approve'
+//                sh 'terraform -chdir=infra destroy --auto-approve'
+            }
+        }
+
+        stage('Git push') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${gitCredentialID}", passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+                        sh 'git add --all'
+                        sh 'git commit -a -m "update state file"'
+                        sh('git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/shahriar52/infra-deploy.git HEAD:master --force')
+                    }
+                }   
+            }
+        }
+        
+    }
+}

@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+    parameters {
+        string defaultValue: 'master', description: 'Enter git branch', name: 'codeGitReference'
+        string defaultValue: 'https://github.com/shahriar52/app.git', description: 'Enter git repo', name: 'codeGitRepo'
+        string defaultValue: 'master', description: 'Enter git branch', name: 'manifestGitReference'
+        string defaultValue: 'https://github.com/shahriar52/infra-deploy.git', description: 'Enter git repo', name: 'manifestGitRepo'        
+        string defaultValue: '919545427229.dkr.ecr.ap-southeast-2.amazonaws.com', description: 'Enter ECR repo', name: 'ecrRepo'
+        string defaultValue: 'e2b04e48-a41a-4ab2-ab97-95b935c58620', description: 'Enter git repo', name: 'gitCredentialID'
+    }
+
+    stages {
+        stage('Clone Code Git Repository') { 
+            steps {
+                cleanWs()
+                script {
+                    def scmVars = checkout([$class: 'GitSCM', branches: [[name: "${codeGitReference}"]], userRemoteConfigs: [[url: "${codeGitRepo}"]]]) 
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    
+                }   
+            }
+        }        
+
+        stage("Build") {
+            steps {
+                script{
+                    app = docker.build("python-demo:${codeGitReference}-${GIT_COMMIT}")
+                }                
+                
+            }
+        }
+
+        stage('Push') {
+            steps {
+                script{
+                    docker.withRegistry("https://${ecrRepo}", 'ecr:ap-southeast-2:e0d9d229-3ae2-48c1-937b-06c49b22915e') {
+                    app.push()
+                    }
+                }
+            }
+        }
+
+        stage('Clone Infra Git Repository') { 
+            steps {
+                cleanWs()
+                script {
+                    def scmVars = checkout([$class: 'GitSCM', branches: [[name: "${manifestGitReference}"]], userRemoteConfigs: [[url: "${manifestGitRepo}"]]]) 
+                }
+                sh 'ls -la'
+            }
+        }        
+
+        stage('Terraform init') {
+            steps {
+                sh 'terraform -chdir=app_deploy/production init'
+            }
+        }
+
+        stage('Terraform deploy app') {
+            steps {
+                sh 'terraform -chdir=app_deploy/production apply -var="container_image=${ecrRepo}/python-demo:${codeGitReference}-${GIT_COMMIT}" --auto-approve'
+//                sh 'terraform -chdir=app_deploy/production destroy --auto-approve'
+//                sh 'echo "${ecrRepo}/python-demo:${gitReference}-${GIT_COMMIT}"'
+            }
+        }
+        
+        stage('Git push state file') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${gitCredentialID}", passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+                        sh 'git add --all'
+                        sh 'git commit -a -m "update state file"'
+                        sh('git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/shahriar52/infra-deploy.git HEAD:master --force')
+                    }
+                }   
+            }
+        }        
+        
+    }
+}
