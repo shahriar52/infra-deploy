@@ -17,7 +17,7 @@ This repository provides two sets of terraform codes and Jenkins files for the a
 - Clone this repository and import the `infra/Jenkinsfile` file into Jenkins to create the core infrastructure (`Infra`) pipeline. Set the Jenkins parameters and terraform variable in the `infra/variables.tf` file. Run the pipeline to deploy the core infrastructure. This would push the terraform state file back to Git at the end of the pipeline.
 - Once the above is successfully deployed check the `app_deploy/variables.tf` to import some of the resource information from the core infrastructure.
 - Apply the `app_deploy/Jenkinsfile` to create the Jenkins pipeline (`Build and Deploy`) for the application build and deployment.
-- Set the application code repository alone with other Jenkins pipeline parameters and run the `Build and Deploy` pipeline. This would build the application from the Dockerfile, push the image with proper tagging into the previously build ECR image repository and then run Terraform to deploy the ECR task and service associated with the application. Terraform state file is pushed to Git at the end.
+- Set the application code repository (e.g. https://github.com/shahriar52/app) alonge with other Jenkins pipeline parameters and run the `Build and Deploy` pipeline. This would build the application from the Dockerfile, push the image with proper tagging into the previously build ECR image repository and then run Terraform to deploy the ECR task and service associated with the application. Terraform state file is pushed to Git at the end.
 - If the application changes in the application code repo, running the `Build and Deploy` pipeline again would reconcile new code into the cluster in a Blue-Green fashion.
 
 ## Improvements
